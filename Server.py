@@ -14,80 +14,97 @@ class ClientServerProtocol(asyncio.Protocol):
         self.transport.write(resp.encode())
 
     def make_answer(self, data):
-        if data[0:3] == 'put':
+        command = data[0:3]
+        if command == 'put':
             return self.write_to_file(data)
-        elif data[0:3] == 'get':
+        elif command == 'get':
             return self.read_file(data)
         else:
             return 'error\nwrong command\n\n'
 
     def write_to_file(self, data):
         lst = data.split()
-        if len(lst) == 4:
-            try:
-                metric = float(lst[2])
-                timestamp = int(lst[3])
-            except:
-                return 'error\nwrong command\n\n'
-            try:
-                f = open('data.txt', 'r')
-                dict = json.loads(f.readlines()[0])
-                if lst[1] not in dict:
-                    dict[lst[1]] = [(lst[2], lst[3])]
-                else:
-                    dict[lst[1]].append((lst[2], lst[3]))
-                f.close()
-                f1 = open('data.txt', 'w')
-                json.dump(dict, f1)
-                f1.close()
-            except:
-                f = open('data.txt', 'w')
-                dict = {lst[1]: [(lst[2], lst[3])]}
-                json.dump(dict, f)
-                f.close()
-            return 'ok\n\n'
-        else:
+        if len(lst) != 4:
             return 'error\nwrong command\n\n'
+
+        key, metric, timestamp = lst[1], lst[2], lst[3]
+
+        try:
+            metric = float(metric)
+            timestamp = int(timestamp)
+        except:
+            return 'error\nwrong command\n\n'
+
+        try:
+            file = open('data.txt', 'r')
+            dict = json.loads(file.readlines()[0])
+            file.close()
+            if key not in dict:
+                dict[key] = [(metric, timestamp)]
+            else:
+                dict[key].append((metric, timestamp))
+        except:
+            dict = {key: [(metric, timestamp)]}
+
+        file = open('data.txt', 'w')
+        json.dump(dict, file)
+        file.close()
+        return 'ok\n\n'
 
     def read_file(self, data):
-        if len(data.split()) == 2:
-            try:
-                key = data.split()[1]
-                f = open('data.txt', 'r')
-                dict = json.loads(f.readlines()[0])
-                if key == '*':
-                    metrics = []
-                    for i in dict:
-                        key = i
-                        dict[key] = sorted(dict[key], key=lambda tpl: tpl[1], reverse=False)
-                        for e in dict[key]:
-                            value = e[0]
-                            timestamp = e[1]
-                            if (key, value, timestamp) not in metrics:
-                                metrics.append((key, value, timestamp))
-                    resp = 'ok\n'
-                    for i in metrics:
-                        resp += i[0] + ' ' + i[1] + ' ' + i[2] + '\n'
-                    resp += '\n'
-
-                else:
-
-                    key_lst = dict[key]
-                    key_lst = sorted(key_lst, key=lambda tpl: tpl[1], reverse=False)
-                    key_lst_1 = []
-                    for i in key_lst:
-                        if i not in key_lst_1:
-                            key_lst_1.append(i)
-                    resp = 'ok\n'
-                    for i in key_lst_1:
-                        resp += key + ' ' + i[0] + ' ' + i[1] + '\n'
-                    resp += '\n'
-                f.close()
-                return resp
-            except:
-                return 'ok\n\n'
-        else:
+        if len(data.split()) != 2:
             return 'error\nwrong command\n\n'
+
+        try:
+            key = data.split()[1]
+            file = open('data.txt', 'r')
+            dict = json.loads(file.readlines()[0])
+            file.close()
+
+            if key == '*':
+                resp = self.return_all_metrics(dict)
+
+            else:
+                resp = self.return_metrics_for_key(dict, key)
+
+            return resp
+
+        except:
+            return 'ok\n\n'
+
+    def return_all_metrics(self, dict):
+        metrics = set()
+        for k in dict:
+            for tpl in dict[k]:
+                value = tpl[0]
+                timestamp = tpl[1]
+                metrics.add((k, value, timestamp))
+
+        resp = 'ok\n'
+        for k in metrics:
+            key, value, timestamp = k[0], k[1], k[2]
+            resp += key + ' ' + str(value) + ' ' + str(timestamp) + '\n'
+        resp += '\n'
+
+        return resp
+
+    def return_metrics_for_key(self, dict, key):
+        key_lst = dict[key]
+        key_set = set()
+
+        for k in key_lst:
+            value = k[0]
+            timestamp = k[1]
+            key_set.add((value, timestamp))
+
+        resp = 'ok\n'
+        for k in key_set:
+            value = k[0]
+            timestamp = k[1]
+            resp += key + ' ' + str(value) + ' ' + str(timestamp) + '\n'
+        resp += '\n'
+
+        return resp
 
 
 class Server:
@@ -117,5 +134,5 @@ class Server:
         loop.close()
 
 
-serv = Server()
-serv.run_server('127.0.0.1', 8888)
+server = Server()
+server.run_server('127.0.0.1', 8888)
