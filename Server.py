@@ -113,6 +113,8 @@ class Server:
         pass
 
     def run_server(self, host, port):
+        file = open('data.txt', 'w')
+        file.close()
         loop = asyncio.get_event_loop()
         coro = loop.create_server(ClientServerProtocol, host, port)
         try:
